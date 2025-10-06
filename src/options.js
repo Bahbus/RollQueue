@@ -23,7 +23,43 @@ const importQueueButton = document.getElementById('import-queue');
 const queueFileInput = document.getElementById('queue-file');
 const stateDumpEl = document.getElementById('state-dump');
 
-const sendMessage = (message) => browserApi.runtime.sendMessage(message);
+const sendMessage = (message) => {
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    const finalize = (result, error) => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      if (error) {
+        reject(error);
+      } else {
+        resolve(result);
+      }
+    };
+
+    const callback = (response) => {
+      const lastError = browserApi?.runtime?.lastError;
+      if (lastError) {
+        finalize(undefined, new Error(lastError.message));
+        return;
+      }
+      finalize(response);
+    };
+
+    try {
+      const maybePromise = browserApi.runtime.sendMessage(message, callback);
+      if (maybePromise && typeof maybePromise.then === 'function') {
+        maybePromise.then(
+          (value) => finalize(value),
+          (error) => finalize(undefined, error)
+        );
+      }
+    } catch (error) {
+      finalize(undefined, error);
+    }
+  });
+};
 
 const populateLanguages = () => {
   AUDIO_LANGUAGES.forEach((language) => {
