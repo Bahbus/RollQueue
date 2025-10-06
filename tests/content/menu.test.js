@@ -7,6 +7,7 @@ import {
   MESSAGE_TYPES
 } from "../../src/content.js";
 import { renderEpisodeCards, clearDom } from "./dom.fixtures.js";
+import { describeMenuAction } from "../support/templates.js";
 
 describe("content menu helpers", () => {
   beforeEach(() => {
@@ -43,41 +44,82 @@ describe("content menu helpers", () => {
     expect(injectedItems.length).toBe(2);
   });
 
-  it("dispatches correct messages from injected menu actions", async () => {
-    const { cards, menus } = renderEpisodeCards();
-    annotateEpisodeCards();
-    const menu = menus[0];
-    const card = cards[0];
-
-    injectMenuItems(menu);
-
-    const items = menu.querySelectorAll(`[${MENU_ITEM_ATTRIBUTE}] button`);
-    expect(items.length).toBe(2);
-
-    items[0].click();
-    await Promise.resolve();
-
-    const firstCall = globalThis.browser.runtime.sendMessage.mock.calls[0][0];
-    expect(firstCall).toMatchObject({
-      type: MESSAGE_TYPES.ADD_EPISODE,
-      payload: expect.objectContaining({
-        id: card.getAttribute("data-rollqueue-episode-id")
-      })
-    });
-
-    items[1].click();
-    await Promise.resolve();
-
-    const secondCall = globalThis.browser.runtime.sendMessage.mock.calls[1][0];
-    expect(secondCall).toMatchObject({
-      type: MESSAGE_TYPES.ADD_EPISODE_AND_NEWER,
-      payload: expect.arrayContaining([
-        expect.objectContaining({ id: card.getAttribute("data-rollqueue-episode-id") })
-      ])
-    });
-
-    const gatheredEpisodes = gatherEpisodesFromCard(card, true);
-    expect(gatheredEpisodes.length).toBeGreaterThan(1);
+  describeMenuAction({
+    name: "menu action dispatch",
+    beforeEach: () => {
+      clearDom();
+      globalThis.browser.runtime.sendMessage.mockClear();
+    },
+    afterEach: () => {
+      clearDom();
+      globalThis.browser.runtime.sendMessage.mockClear();
+    },
+    scenarios: [
+      {
+        description: "queues a single episode when the add action is clicked",
+        setup: () => {
+          const { cards, menus } = renderEpisodeCards();
+          annotateEpisodeCards();
+          const menu = menus[0];
+          injectMenuItems(menu);
+          const items = menu.querySelectorAll(`[${MENU_ITEM_ATTRIBUTE}] button`);
+          return { cards, menu, items };
+        },
+        act: async ({ items }) => {
+          expect(items.length).toBe(2);
+          items[0].click();
+          await Promise.resolve();
+        },
+        expectedBrowserCalls: [
+          {
+            api: "runtime.sendMessage",
+            matcher: ({ callArgs, context }) => {
+              const [message] = callArgs;
+              expect(message).toMatchObject({
+                type: MESSAGE_TYPES.ADD_EPISODE,
+                payload: expect.objectContaining({
+                  id: context.cards[0].getAttribute("data-rollqueue-episode-id"),
+                  title: context.cards[0].getAttribute("data-rollqueue-episode-title")
+                })
+              });
+            }
+          }
+        ]
+      },
+      {
+        description: "queues newer episodes when the multi-add action is clicked",
+        setup: () => {
+          const { cards, menus } = renderEpisodeCards();
+          annotateEpisodeCards();
+          const menu = menus[0];
+          const card = cards[0];
+          injectMenuItems(menu);
+          const items = menu.querySelectorAll(`[${MENU_ITEM_ATTRIBUTE}] button`);
+          return { cards, card, menu, items };
+        },
+        act: async ({ items }) => {
+          expect(items.length).toBe(2);
+          items[1].click();
+          await Promise.resolve();
+        },
+        expectedBrowserCalls: [
+          {
+            api: "runtime.sendMessage",
+            matcher: ({ callArgs, context }) => {
+              const [message] = callArgs;
+              expect(message.type).toBe(MESSAGE_TYPES.ADD_EPISODE_AND_NEWER);
+              expect(Array.isArray(message.payload)).toBe(true);
+              const ids = message.payload.map((episode) => episode.id);
+              expect(ids).toContain(context.card.getAttribute("data-rollqueue-episode-id"));
+            }
+          }
+        ],
+        assert: ({ card }) => {
+          const gatheredEpisodes = gatherEpisodesFromCard(card, true);
+          expect(gatheredEpisodes.length).toBeGreaterThan(1);
+        }
+      }
+    ]
   });
 });
 
