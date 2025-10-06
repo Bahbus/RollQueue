@@ -17,6 +17,16 @@ RollQueue is a Firefox WebExtension that builds a performant queueing and playba
 3. Click **Load Temporary Add-on…** and select the repository's `manifest.json`.
 4. Navigate to a Crunchyroll episode list to try the injected menu items, or open the extension popup to manage your queue.
 
+## Testing
+
+This project uses [Vitest](https://vitest.dev/) for unit testing. After installing dependencies you can use the following npm scripts:
+
+- `npm test` – run the complete test suite once in a Node environment configured with JSDOM.
+- `npm run test:watch` – start Vitest in watch mode for rapid feedback during development.
+- `npm run test:coverage` – execute the suite with V8 coverage reporting enabled. HTML, text, and LCOV reports are written to the default Vitest output directory.
+
+To run an individual suite, append the test file path to the command. For example, `npm test -- tests/example.test.js` executes only the specified file. All CLI flags supported by Vitest are also available, such as `npm test -- --runInBand` for serial execution.
+
 ## Project structure
 
 ```
