@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, vi } from "vitest";
-import { cleanup } from "@testing-library/dom";
+import { cleanup as cleanupDom } from "@testing-library/dom";
 import { installMockBrowserApi, resetBrowserApi } from "./support/mockBrowserApi.js";
 import { useMockedTimers, restoreRealTimers } from "./support/timers.js";
 
@@ -9,7 +9,9 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  cleanup();
+  if (typeof cleanupDom === "function") {
+    cleanupDom();
+  }
   restoreRealTimers();
   resetBrowserApi();
   vi.clearAllMocks();

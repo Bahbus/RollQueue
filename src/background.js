@@ -16,13 +16,13 @@ let state = {
   lastUpdated: Date.now()
 };
 
-const persistState = async () => {
+export const persistState = async () => {
   await browserApi.storage.local.set({
     [STORAGE_KEYS.STATE]: state
   });
 };
 
-const loadState = async () => {
+export const loadState = async () => {
   const stored = await browserApi.storage.local.get(STORAGE_KEYS.STATE);
   if (stored && stored[STORAGE_KEYS.STATE]) {
     const storedState = stored[STORAGE_KEYS.STATE];
@@ -44,7 +44,7 @@ const debugLog = (...args) => {
   }
 };
 
-const broadcastState = async () => {
+export const broadcastState = async () => {
   state.lastUpdated = Date.now();
   await persistState();
   debugLog('Broadcasting state', state);
@@ -63,7 +63,7 @@ const ensureAudioLanguage = (episode) => ({
   audioLanguage: episode.audioLanguage || state.settings.defaultAudioLanguage
 });
 
-const addEpisodes = async (episodes) => {
+export const addEpisodes = async (episodes) => {
   let added = false;
   episodes.forEach((rawEpisode) => {
     const episode = ensureAudioLanguage(rawEpisode);
@@ -78,7 +78,7 @@ const addEpisodes = async (episodes) => {
   return added;
 };
 
-const removeEpisode = async (episodeId) => {
+export const removeEpisode = async (episodeId) => {
   const index = findEpisodeIndex(episodeId);
   if (index !== -1) {
     const [removed] = state.queue.splice(index, 1);
@@ -91,7 +91,7 @@ const removeEpisode = async (episodeId) => {
   }
 };
 
-const reorderQueue = async (orderedIds) => {
+export const reorderQueue = async (orderedIds) => {
   const newQueue = [];
   orderedIds.forEach((id) => {
     const item = state.queue.find((episode) => episode.id === id);
@@ -109,7 +109,7 @@ const reorderQueue = async (orderedIds) => {
   await broadcastState();
 };
 
-const setCurrentEpisode = async (episodeId) => {
+export const setCurrentEpisode = async (episodeId) => {
   if (episodeId && findEpisodeIndex(episodeId) === -1) {
     debugLog('Attempted to select unknown episode', episodeId);
     return;
@@ -118,7 +118,7 @@ const setCurrentEpisode = async (episodeId) => {
   await broadcastState();
 };
 
-const setPlaybackState = async (playbackState) => {
+export const setPlaybackState = async (playbackState) => {
   state.playbackState = playbackState;
   if (
     playbackState === PLAYBACK_STATES.ENDED &&
@@ -131,7 +131,7 @@ const setPlaybackState = async (playbackState) => {
   }
 };
 
-const controlPlayback = async (action) => {
+export const controlPlayback = async (action) => {
   if (!browserApi?.tabs?.query || !browserApi?.tabs?.sendMessage) {
     debugLog('Tabs API unavailable for playback control');
     return { success: false };
@@ -163,7 +163,7 @@ const controlPlayback = async (action) => {
   }
 };
 
-const updateSettings = async (settingsUpdate) => {
+export const updateSettings = async (settingsUpdate) => {
   state.settings = {
     ...state.settings,
     ...settingsUpdate
@@ -177,7 +177,7 @@ const updateSettings = async (settingsUpdate) => {
   await broadcastState();
 };
 
-const setAudioLanguage = async (episodeId, audioLanguage) => {
+export const setAudioLanguage = async (episodeId, audioLanguage) => {
   const index = findEpisodeIndex(episodeId);
   if (index !== -1) {
     const selectedLanguage = AUDIO_LANGUAGES.find((language) => language.code === audioLanguage);
@@ -220,12 +220,12 @@ const setAudioLanguage = async (episodeId, audioLanguage) => {
   }
 };
 
-const setQueue = async (episodes) => {
+export const setQueue = async (episodes) => {
   state.queue = episodes.map((episode) => ensureAudioLanguage(episode));
   await broadcastState();
 };
 
-const handleMessage = async (message) => {
+export const handleMessage = async (message) => {
   switch (message.type) {
     case MESSAGE_TYPES.GET_STATE:
       return state;
