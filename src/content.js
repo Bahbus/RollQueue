@@ -1,41 +1,53 @@
-const browserApi = typeof browser !== 'undefined' ? browser : chrome;
-
-const MESSAGE_TYPES = {
-  GET_STATE: 'GET_STATE',
-  STATE_UPDATED: 'STATE_UPDATED',
-  ADD_EPISODE: 'ADD_EPISODE',
-  ADD_EPISODE_AND_NEWER: 'ADD_EPISODE_AND_NEWER',
-  REMOVE_EPISODE: 'REMOVE_EPISODE',
-  REORDER_QUEUE: 'REORDER_QUEUE',
-  UPDATE_SETTINGS: 'UPDATE_SETTINGS',
-  SELECT_EPISODE: 'SELECT_EPISODE',
-  UPDATE_PLAYBACK_STATE: 'UPDATE_PLAYBACK_STATE',
-  CONTROL_PLAYBACK: 'CONTROL_PLAYBACK',
-  REQUEST_DEBUG_DUMP: 'REQUEST_DEBUG_DUMP',
-  SET_AUDIO_LANGUAGE: 'SET_AUDIO_LANGUAGE',
-  SET_QUEUE: 'SET_QUEUE',
-  APPLY_AUDIO_LANGUAGE: 'APPLY_AUDIO_LANGUAGE'
+const resolveBrowserApi = () => {
+  if (typeof globalThis.browser !== "undefined") {
+    return globalThis.browser;
+  }
+  if (typeof globalThis.chrome !== "undefined") {
+    return globalThis.chrome;
+  }
+  return undefined;
 };
 
-const PLAYBACK_STATES = {
-  IDLE: 'idle',
-  PLAYING: 'playing',
-  PAUSED: 'paused',
-  ENDED: 'ended'
+export const getBrowserApi = () => resolveBrowserApi();
+
+export const MESSAGE_TYPES = {
+  GET_STATE: "GET_STATE",
+  STATE_UPDATED: "STATE_UPDATED",
+  ADD_EPISODE: "ADD_EPISODE",
+  ADD_EPISODE_AND_NEWER: "ADD_EPISODE_AND_NEWER",
+  REMOVE_EPISODE: "REMOVE_EPISODE",
+  REORDER_QUEUE: "REORDER_QUEUE",
+  UPDATE_SETTINGS: "UPDATE_SETTINGS",
+  SELECT_EPISODE: "SELECT_EPISODE",
+  UPDATE_PLAYBACK_STATE: "UPDATE_PLAYBACK_STATE",
+  CONTROL_PLAYBACK: "CONTROL_PLAYBACK",
+  REQUEST_DEBUG_DUMP: "REQUEST_DEBUG_DUMP",
+  SET_AUDIO_LANGUAGE: "SET_AUDIO_LANGUAGE",
+  SET_QUEUE: "SET_QUEUE",
+  APPLY_AUDIO_LANGUAGE: "APPLY_AUDIO_LANGUAGE"
 };
 
-const MENU_ITEM_CLASS = 'rollqueue-menu-item';
-const MENU_ITEM_ATTRIBUTE = 'data-rollqueue-menu-item';
-const CARD_ATTRIBUTE = 'data-rollqueue-episode-id';
-const ANNOTATED_FLAG = 'data-rollqueue-annotated';
+export const PLAYBACK_STATES = {
+  IDLE: "idle",
+  PLAYING: "playing",
+  PAUSED: "paused",
+  ENDED: "ended"
+};
+
+export const MENU_ITEM_CLASS = "rollqueue-menu-item";
+export const MENU_ITEM_ATTRIBUTE = "data-rollqueue-menu-item";
+export const CARD_ATTRIBUTE = "data-rollqueue-episode-id";
+export const ANNOTATED_FLAG = "data-rollqueue-annotated";
 
 let trackedVideo = null;
+let scheduleIntervalId = null;
+let initialized = false;
 
-const resolveTrackedVideo = () => {
+export const resolveTrackedVideo = () => {
   if (trackedVideo && document.contains(trackedVideo)) {
     return trackedVideo;
   }
-  const video = document.querySelector('video');
+  const video = document.querySelector("video");
   if (video) {
     monitorVideoElement(video);
     return video;
@@ -43,7 +55,7 @@ const resolveTrackedVideo = () => {
   return null;
 };
 
-const computePlaybackState = (video) => {
+export const computePlaybackState = (video) => {
   if (!video) {
     return PLAYBACK_STATES.IDLE;
   }
@@ -56,19 +68,19 @@ const computePlaybackState = (video) => {
   return PLAYBACK_STATES.PLAYING;
 };
 
-const AUDIO_LANGUAGE_LABELS = {
-  'ja-JP': 'Japanese',
-  'en-US': 'English',
-  'es-419': 'Spanish (Latin America)',
-  'es-ES': 'Spanish (Spain)',
-  'pt-BR': 'Portuguese (Brazil)',
-  'fr-FR': 'French',
-  'de-DE': 'German',
-  'it-IT': 'Italian'
+export const AUDIO_LANGUAGE_LABELS = {
+  "ja-JP": "Japanese",
+  "en-US": "English",
+  "es-419": "Spanish (Latin America)",
+  "es-ES": "Spanish (Spain)",
+  "pt-BR": "Portuguese (Brazil)",
+  "fr-FR": "French",
+  "de-DE": "German",
+  "it-IT": "Italian"
 };
 
-const sendMessage = (message) => {
-  return new Promise((resolve) => {
+export const sendMessage = (message) =>
+  new Promise((resolve) => {
     let settled = false;
     const finalize = (value) => {
       if (settled) {
@@ -79,7 +91,7 @@ const sendMessage = (message) => {
     };
 
     const callback = (response) => {
-      const lastError = browserApi?.runtime?.lastError;
+      const lastError = getBrowserApi()?.runtime?.lastError;
       if (lastError) {
         finalize(undefined);
         return;
@@ -88,32 +100,31 @@ const sendMessage = (message) => {
     };
 
     try {
-      const maybePromise = browserApi.runtime.sendMessage(message, callback);
-      if (maybePromise && typeof maybePromise.then === 'function') {
+      const maybePromise = getBrowserApi()?.runtime?.sendMessage?.(message, callback);
+      if (maybePromise && typeof maybePromise.then === "function") {
         maybePromise.then(finalize).catch(() => finalize(undefined));
       }
     } catch (error) {
       finalize(undefined);
     }
   });
-};
 
-const parseEpisodeIdFromUrl = (url) => {
+export const parseEpisodeIdFromUrl = (url) => {
   try {
     const parsed = new URL(url, window.location.href);
-    const segments = parsed.pathname.split('/').filter(Boolean);
-    const watchIndex = segments.indexOf('watch');
+    const segments = parsed.pathname.split("/").filter(Boolean);
+    const watchIndex = segments.indexOf("watch");
     if (watchIndex !== -1 && segments[watchIndex + 1]) {
       return segments[watchIndex + 1];
     }
     return parsed.href;
   } catch (error) {
-    console.warn('RollQueue: Unable to parse episode id', url, error);
+    console.warn("RollQueue: Unable to parse episode id", url, error);
     return url;
   }
 };
 
-const annotateEpisodeCards = () => {
+export const annotateEpisodeCards = () => {
   document.querySelectorAll('a[href*="/watch/"]').forEach((anchor) => {
     const card = anchor.closest('[data-testid="episode-card"], article, li, div');
     if (!card || card.hasAttribute(ANNOTATED_FLAG)) {
@@ -122,21 +133,24 @@ const annotateEpisodeCards = () => {
     const id = parseEpisodeIdFromUrl(anchor.href);
     const titleEl = card.querySelector('[data-testid="media-card-title"], h3, .text--primary, .card-title');
     const subTitleEl = card.querySelector('[data-testid="media-card-subtitle"], .text--secondary');
-    const thumbImg = card.querySelector('img');
+    const thumbImg = card.querySelector("img");
     card.setAttribute(CARD_ATTRIBUTE, id);
-    card.setAttribute('data-rollqueue-episode-url', anchor.href);
-    card.setAttribute('data-rollqueue-episode-title', (titleEl?.textContent || anchor.textContent || '').trim());
+    card.setAttribute("data-rollqueue-episode-url", anchor.href);
+    card.setAttribute(
+      "data-rollqueue-episode-title",
+      (titleEl?.textContent || anchor.textContent || "").trim()
+    );
     if (subTitleEl) {
-      card.setAttribute('data-rollqueue-episode-subtitle', subTitleEl.textContent.trim());
+      card.setAttribute("data-rollqueue-episode-subtitle", subTitleEl.textContent.trim());
     }
     if (thumbImg) {
-      card.setAttribute('data-rollqueue-episode-thumbnail', thumbImg.currentSrc || thumbImg.src);
+      card.setAttribute("data-rollqueue-episode-thumbnail", thumbImg.currentSrc || thumbImg.src);
     }
-    card.setAttribute(ANNOTATED_FLAG, 'true');
+    card.setAttribute(ANNOTATED_FLAG, "true");
   });
 };
 
-const gatherEpisodesFromCard = (card, includeNewer = false) => {
+export const gatherEpisodesFromCard = (card, includeNewer = false) => {
   if (!card) {
     return [];
   }
@@ -146,36 +160,36 @@ const gatherEpisodesFromCard = (card, includeNewer = false) => {
   const selected = includeNewer && startIndex !== -1 ? cards.slice(startIndex) : [card];
   return selected.map((episodeCard) => ({
     id: episodeCard.getAttribute(CARD_ATTRIBUTE),
-    url: episodeCard.getAttribute('data-rollqueue-episode-url'),
-    title: episodeCard.getAttribute('data-rollqueue-episode-title'),
-    subtitle: episodeCard.getAttribute('data-rollqueue-episode-subtitle'),
-    thumbnail: episodeCard.getAttribute('data-rollqueue-episode-thumbnail')
+    url: episodeCard.getAttribute("data-rollqueue-episode-url"),
+    title: episodeCard.getAttribute("data-rollqueue-episode-title"),
+    subtitle: episodeCard.getAttribute("data-rollqueue-episode-subtitle"),
+    thumbnail: episodeCard.getAttribute("data-rollqueue-episode-thumbnail")
   }));
 };
 
-const createMenuItem = (label, onSelect) => {
-  const item = document.createElement('li');
-  item.setAttribute(MENU_ITEM_ATTRIBUTE, 'true');
+export const createMenuItem = (label, onSelect) => {
+  const item = document.createElement("li");
+  item.setAttribute(MENU_ITEM_ATTRIBUTE, "true");
   item.classList.add(MENU_ITEM_CLASS);
-  item.setAttribute('role', 'menuitem');
-  const button = document.createElement('button');
-  button.type = 'button';
+  item.setAttribute("role", "menuitem");
+  const button = document.createElement("button");
+  button.type = "button";
   button.textContent = label;
-  button.className = 'rollqueue-menu-button';
-  button.addEventListener('click', (event) => {
+  button.className = "rollqueue-menu-button";
+  button.addEventListener("click", (event) => {
     event.preventDefault();
     event.stopPropagation();
     onSelect();
     const menu = item.closest('[role="menu"], ul, ol');
     if (menu) {
-      menu.dispatchEvent(new Event('rollqueue:close-menu', { bubbles: true }));
+      menu.dispatchEvent(new Event("rollqueue:close-menu", { bubbles: true }));
     }
   });
   item.appendChild(button);
   return item;
 };
 
-const injectMenuItems = (menu) => {
+export const injectMenuItems = (menu) => {
   if (!(menu instanceof Element)) {
     return;
   }
@@ -186,7 +200,7 @@ const injectMenuItems = (menu) => {
   if (!card) {
     return;
   }
-  const addSingle = createMenuItem('Add to queue…', () => {
+  const addSingle = createMenuItem("Add to queue…", () => {
     const episodes = gatherEpisodesFromCard(card, false);
     if (episodes.length) {
       sendMessage({
@@ -196,7 +210,7 @@ const injectMenuItems = (menu) => {
     }
   });
 
-  const addSeries = createMenuItem('Add this and newer…', () => {
+  const addSeries = createMenuItem("Add this and newer…", () => {
     const episodes = gatherEpisodesFromCard(card, true);
     if (episodes.length) {
       sendMessage({
@@ -215,7 +229,7 @@ const injectMenuItems = (menu) => {
   }
 };
 
-const menuObserver = new MutationObserver((mutations) => {
+export const menuObserver = new MutationObserver((mutations) => {
   mutations.forEach((mutation) => {
     mutation.addedNodes.forEach((node) => {
       if (!(node instanceof Element)) {
@@ -231,33 +245,35 @@ const menuObserver = new MutationObserver((mutations) => {
   });
 });
 
-const setupMenuInjection = () => {
+export const setupMenuInjection = () => {
   annotateEpisodeCards();
   document.querySelectorAll('[role="menu"], ul, ol').forEach((menu) => {
     injectMenuItems(menu);
   });
-  menuObserver.observe(document.body, { childList: true, subtree: true });
+  if (document.body) {
+    menuObserver.observe(document.body, { childList: true, subtree: true });
+  }
 };
 
-const updatePlaybackStatus = (state) => {
+export const updatePlaybackStatus = (state) => {
   sendMessage({
     type: MESSAGE_TYPES.UPDATE_PLAYBACK_STATE,
     payload: { state }
   });
 };
 
-const normalizeLanguageValue = (value) => (value || '').toLowerCase();
+export const normalizeLanguageValue = (value) => (value || "").toLowerCase();
 
-const buildLanguageCandidates = (code, label) => {
+export const buildLanguageCandidates = (code, label) => {
   const candidates = new Set();
   if (code) {
     candidates.add(code);
-    const shortCode = code.split('-')[0];
+    const shortCode = code.split("-")[0];
     candidates.add(shortCode);
     const mapped = AUDIO_LANGUAGE_LABELS[code];
     if (mapped) {
       candidates.add(mapped);
-      const simplifiedMapped = mapped.replace(/\(.*?\)/g, '').trim();
+      const simplifiedMapped = mapped.replace(/\(.*?\)/g, "").trim();
       if (simplifiedMapped) {
         candidates.add(simplifiedMapped);
       }
@@ -265,7 +281,7 @@ const buildLanguageCandidates = (code, label) => {
   }
   if (label) {
     candidates.add(label);
-    const simplifiedLabel = label.replace(/\(.*?\)/g, '').trim();
+    const simplifiedLabel = label.replace(/\(.*?\)/g, "").trim();
     if (simplifiedLabel) {
       candidates.add(simplifiedLabel);
     }
@@ -275,7 +291,7 @@ const buildLanguageCandidates = (code, label) => {
     .filter(Boolean);
 };
 
-const setVideoAudioTrack = (video, code, label) => {
+export const setVideoAudioTrack = (video, code, label) => {
   if (!video) {
     return false;
   }
@@ -285,7 +301,7 @@ const setVideoAudioTrack = (video, code, label) => {
   } catch (error) {
     return false;
   }
-  if (!audioTracks || typeof audioTracks.length !== 'number') {
+  if (!audioTracks || typeof audioTracks.length !== "number") {
     return false;
   }
   const candidates = buildLanguageCandidates(code, label);
@@ -325,12 +341,12 @@ const setVideoAudioTrack = (video, code, label) => {
   return true;
 };
 
-const findAudioMenuToggle = () =>
+export const findAudioMenuToggle = () =>
   document.querySelector(
     'button[aria-label*="audio" i], button[data-testid="audio-menu-button"], button[data-testid="audio-selector"], button[aria-label*="dub" i]'
   );
 
-const collectAudioMenuOptions = () => {
+export const collectAudioMenuOptions = () => {
   const selectors = [
     '[role="menu"] [role="menuitem"]',
     '[role="menu"] [role="menuitemradio"]',
@@ -344,7 +360,8 @@ const collectAudioMenuOptions = () => {
       if (!withinMenu) {
         return;
       }
-      const isHidden = element.getAttribute('aria-hidden') === 'true' || element.hidden || element.style?.display === 'none';
+      const isHidden =
+        element.getAttribute("aria-hidden") === "true" || element.hidden || element.style?.display === "none";
       if (!isHidden) {
         results.add(element);
       }
@@ -353,7 +370,7 @@ const collectAudioMenuOptions = () => {
   return Array.from(results);
 };
 
-const waitForMenuOption = (matcher, timeout = 2000) =>
+export const waitForMenuOption = (matcher, timeout = 2000) =>
   new Promise((resolve) => {
     const start = Date.now();
     const check = () => {
@@ -366,7 +383,7 @@ const waitForMenuOption = (matcher, timeout = 2000) =>
         resolve(null);
         return;
       }
-      if (typeof window.requestAnimationFrame === 'function') {
+      if (typeof window.requestAnimationFrame === "function") {
         window.requestAnimationFrame(check);
       } else {
         setTimeout(check, 100);
@@ -375,12 +392,12 @@ const waitForMenuOption = (matcher, timeout = 2000) =>
     check();
   });
 
-const selectAudioTrackFromMenu = async (code, label) => {
+export const selectAudioTrackFromMenu = async (code, label) => {
   const toggle = findAudioMenuToggle();
   if (!toggle) {
     return false;
   }
-  const wasExpanded = toggle.getAttribute('aria-expanded') === 'true';
+  const wasExpanded = toggle.getAttribute("aria-expanded") === "true";
   if (!wasExpanded) {
     toggle.click();
   }
@@ -393,23 +410,23 @@ const selectAudioTrackFromMenu = async (code, label) => {
     return candidates.some((candidate) => text.includes(candidate));
   });
   if (!option) {
-    if (!wasExpanded && toggle.getAttribute('aria-expanded') === 'true') {
+    if (!wasExpanded && toggle.getAttribute("aria-expanded") === "true") {
       toggle.click();
     }
     return false;
   }
-  option.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-  if (!wasExpanded && toggle.getAttribute('aria-expanded') === 'true') {
+  option.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+  if (!wasExpanded && toggle.getAttribute("aria-expanded") === "true") {
     toggle.click();
   }
   return true;
 };
 
-const applyAudioLanguageDirective = async ({ audioLanguage, label } = {}) => {
+export const applyAudioLanguageDirective = async ({ audioLanguage, label } = {}) => {
   if (!audioLanguage) {
     return false;
   }
-  const video = document.querySelector('video');
+  const video = document.querySelector("video");
   let switched = false;
   if (video) {
     switched = setVideoAudioTrack(video, audioLanguage, label);
@@ -432,7 +449,7 @@ const applyAudioLanguageDirective = async ({ audioLanguage, label } = {}) => {
   return switched;
 };
 
-const selectCurrentEpisode = (episodeId) => {
+export const selectCurrentEpisode = (episodeId) => {
   if (!episodeId) {
     return;
   }
@@ -442,15 +459,15 @@ const selectCurrentEpisode = (episodeId) => {
   });
 };
 
-const monitorVideoElement = (video) => {
+export const monitorVideoElement = (video) => {
   if (!video) {
     return;
   }
   trackedVideo = video;
-  if (video.dataset.rollqueueBound === 'true') {
+  if (video.dataset.rollqueueBound === "true") {
     return;
   }
-  video.dataset.rollqueueBound = 'true';
+  video.dataset.rollqueueBound = "true";
   updatePlaybackStatus(video.paused ? PLAYBACK_STATES.PAUSED : PLAYBACK_STATES.PLAYING);
   const handlePlay = () => updatePlaybackStatus(PLAYBACK_STATES.PLAYING);
   const handlePause = () => {
@@ -462,46 +479,60 @@ const monitorVideoElement = (video) => {
   };
   const handleEnded = () => updatePlaybackStatus(PLAYBACK_STATES.ENDED);
   const handleLoaded = () => updatePlaybackStatus(PLAYBACK_STATES.IDLE);
-  video.addEventListener('play', handlePlay);
-  video.addEventListener('pause', handlePause);
-  video.addEventListener('ended', handleEnded);
-  video.addEventListener('loadeddata', handleLoaded);
+  video.addEventListener("play", handlePlay);
+  video.addEventListener("pause", handlePause);
+  video.addEventListener("ended", handleEnded);
+  video.addEventListener("loadeddata", handleLoaded);
 };
 
-const locateAndMonitorVideo = () => {
+export const locateAndMonitorVideo = () => {
   if (trackedVideo && !document.contains(trackedVideo)) {
     trackedVideo = null;
   }
-  const video = trackedVideo && document.contains(trackedVideo) ? trackedVideo : document.querySelector('video');
+  const video = trackedVideo && document.contains(trackedVideo) ? trackedVideo : document.querySelector("video");
   if (video) {
     monitorVideoElement(video);
   }
 };
 
-const initCurrentEpisodeSelection = () => {
-  if (!window.location.pathname.includes('/watch/')) {
+export const initCurrentEpisodeSelection = () => {
+  if (!window.location.pathname.includes("/watch/")) {
     return;
   }
   const id = parseEpisodeIdFromUrl(window.location.href);
   selectCurrentEpisode(id);
 };
 
-const scheduleTasks = () => {
+export const scheduleTasks = () => {
   annotateEpisodeCards();
   locateAndMonitorVideo();
   initCurrentEpisodeSelection();
 };
 
-scheduleTasks();
-setupMenuInjection();
+export const teardownContent = () => {
+  if (scheduleIntervalId) {
+    clearInterval(scheduleIntervalId);
+    scheduleIntervalId = null;
+  }
+  const api = getBrowserApi();
+  if (api?.runtime?.onMessage?.hasListener?.(contentMessageListener)) {
+    api.runtime.onMessage.removeListener(contentMessageListener);
+  }
+  if (menuObserver) {
+    try {
+      menuObserver.disconnect();
+    } catch (error) {
+      // ignore
+    }
+  }
+  initialized = false;
+};
 
-setInterval(scheduleTasks, 2000);
-
-browserApi.runtime.onMessage.addListener((message, sender, sendResponse) => {
+export const contentMessageListener = (message, sender, sendResponse) => {
   if (message?.type === MESSAGE_TYPES.APPLY_AUDIO_LANGUAGE) {
     Promise.resolve(applyAudioLanguageDirective(message.payload)).then((success) => {
       try {
-        sendResponse({ success });
+        sendResponse?.({ success });
       } catch (error) {
         // Ignore response errors (listener may be gone).
       }
@@ -513,7 +544,7 @@ browserApi.runtime.onMessage.addListener((message, sender, sendResponse) => {
     const video = resolveTrackedVideo();
     if (!video || !action) {
       try {
-        sendResponse({ success: false });
+        sendResponse?.({ success: false });
       } catch (error) {
         // Ignore response errors (listener may be gone).
       }
@@ -524,16 +555,16 @@ browserApi.runtime.onMessage.addListener((message, sender, sendResponse) => {
       const state = computePlaybackState(video);
       updatePlaybackStatus(state);
       try {
-        sendResponse({ success, state });
+        sendResponse?.({ success, state });
       } catch (error) {
         // Ignore response errors (listener may be gone).
       }
     };
 
-    if (action === 'play') {
+    if (action === "play") {
       try {
         const result = video.play?.();
-        if (result && typeof result.then === 'function') {
+        if (result && typeof result.then === "function") {
           result
             .then(() => finalize(true))
             .catch(() => finalize(false));
@@ -546,7 +577,7 @@ browserApi.runtime.onMessage.addListener((message, sender, sendResponse) => {
       return false;
     }
 
-    if (action === 'pause') {
+    if (action === "pause") {
       try {
         video.pause?.();
         finalize(true);
@@ -560,4 +591,29 @@ browserApi.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return false;
   }
   return undefined;
-});
+};
+
+export const initContent = () => {
+  if (initialized || typeof document === "undefined" || typeof window === "undefined") {
+    return;
+  }
+  initialized = true;
+  scheduleTasks();
+  setupMenuInjection();
+  scheduleIntervalId = window.setInterval(scheduleTasks, 2000);
+  getBrowserApi()?.runtime?.onMessage?.addListener?.(contentMessageListener);
+};
+
+if (typeof window !== "undefined" && getBrowserApi()?.runtime?.id) {
+  initContent();
+}
+
+export const __testInternals = {
+  get trackedVideo() {
+    return trackedVideo;
+  },
+  set trackedVideo(value) {
+    trackedVideo = value;
+  }
+};
+
