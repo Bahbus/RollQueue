@@ -42,3 +42,14 @@ This document breaks down the previously defined test strategy into actionable t
 ## Future/Planned Function Support
 - [ ] Build reusable test templates (e.g., `describeMessageHandler`, `describeMenuAction`) so new message types automatically receive baseline coverage.
 - [ ] Extend fixture builders to accept optional future metadata fields, ensuring forward compatibility for planned features.
+
+## Test Template Usage
+
+To streamline the scenarios above, reusable helpers now live in `tests/support/templates.js`.
+
+- **`describeMessageHandler`** wraps a suite of message-routing assertions. Provide a `getHandler` callback that resolves to the function under test and list `scenarios` with `type`/`payload` or a full `message`, optional `setup`/`teardown`, and `expectedBrowserCalls` for automatic `browser.*` verification. Each scenario can supply an `assert` callback that receives `{ result, context, message }` for custom expectations.
+- **`describeMenuAction`** standardizes DOM-driven menu checks by accepting `setup` and `act` callbacks. The helper will run each scenario within its own `it` block, apply any `expectedBrowserCalls`, and execute additional `assert` logic.
+
+See `tests/background/settings.test.js` and `tests/content/menu.test.js` for end-to-end examples that demonstrate how future message types or menu actions can plug into these templates with minimal boilerplate.
+
+The `episodeFactory` helper (`tests/support/episodeFactory.js`) now accepts deep metadata overrides while providing defaults (URL, subtitle, thumbnail, audio language, etc.) that mirror the expectations in `src/background.js`. Override only the fields you care about and the factory will merge the rest.

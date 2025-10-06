@@ -6,6 +6,8 @@ import {
   PLAYBACK_STATES,
   STORAGE_KEYS
 } from "../../src/constants.js";
+import { describeMessageHandler } from "../support/templates.js";
+import { episodeFactory } from "../support/episodeFactory.js";
 
 const getState = async (background) => background.handleMessage({ type: MESSAGE_TYPES.GET_STATE });
 
@@ -96,67 +98,116 @@ describe("background settings and persistence", () => {
     expect(state.lastUpdated).not.toBe(initialTimestamp);
   });
 
-  it("dispatches all supported messages and logs unknown requests", async () => {
-    const consoleSpy = vi.spyOn(console, "debug").mockImplementation(() => {});
-
-    await background.handleMessage({
-      type: MESSAGE_TYPES.ADD_EPISODE,
-      payload: { id: "msg-1", title: "Message Episode" }
-    });
-    await background.handleMessage({
-      type: MESSAGE_TYPES.ADD_EPISODE_AND_NEWER,
-      payload: [
-        { id: "msg-1", title: "Message Episode" },
-        { id: "msg-2", title: "Second" }
-      ]
-    });
-    await background.handleMessage({
-      type: MESSAGE_TYPES.REMOVE_EPISODE,
-      payload: { id: "msg-1" }
-    });
-    await background.handleMessage({
-      type: MESSAGE_TYPES.REORDER_QUEUE,
-      payload: { ids: ["msg-2"] }
-    });
-    await background.handleMessage({
-      type: MESSAGE_TYPES.SELECT_EPISODE,
-      payload: { id: "msg-2" }
-    });
-    await background.handleMessage({
-      type: MESSAGE_TYPES.UPDATE_PLAYBACK_STATE,
-      payload: { state: PLAYBACK_STATES.PLAYING }
-    });
-    await background.handleMessage({
-      type: MESSAGE_TYPES.CONTROL_PLAYBACK,
-      payload: { action: "play" }
-    });
-    await background.handleMessage({
-      type: MESSAGE_TYPES.UPDATE_SETTINGS,
-      payload: { settings: { debugLogging: true } }
-    });
-    await background.handleMessage({
-      type: MESSAGE_TYPES.SET_AUDIO_LANGUAGE,
-      payload: { id: "msg-2", audioLanguage: AUDIO_LANGUAGES[0].code }
-    });
-    await background.handleMessage({
-      type: MESSAGE_TYPES.SET_QUEUE,
-      payload: { queue: [{ id: "msg-3", title: "Another" }] }
-    });
-    const debugDump = await background.handleMessage({
-      type: MESSAGE_TYPES.REQUEST_DEBUG_DUMP
-    });
-    expect(debugDump).toMatchObject({
-      timestamp: expect.any(String),
-      audioLanguages: AUDIO_LANGUAGES
-    });
-
-    await background.handleMessage({ type: "UNKNOWN_TYPE" });
-
-    expect(consoleSpy).toHaveBeenCalledWith(
-      "[RollQueue]",
-      "Unknown message",
-      { type: "UNKNOWN_TYPE" }
-    );
-    consoleSpy.mockRestore();
+  describeMessageHandler({
+    name: "background message routing",
+    getHandler: () => background.handleMessage,
+    beforeEach: () => {
+      globalThis.browser.runtime.sendMessage.mockClear();
+    },
+    afterEach: () => {
+      globalThis.browser.runtime.sendMessage.mockClear();
+    },
+    scenarios: [
+      {
+        description: "adds new episodes when ADD_EPISODE is received",
+        type: MESSAGE_TYPES.ADD_EPISODE,
+        payload: episodeFactory({ id: "msg-1", title: "Message Episode" }),
+        assert: async ({ result }) => {
+          expect(result.queue.some((episode) => episode.id === "msg-1")).toBe(true);
+        },
+        expectedBrowserCalls: [
+          {
+            api: "runtime.sendMessage",
+            matcher: ({ callArgs }) => {
+              expect(callArgs[0]).toMatchObject({ type: MESSAGE_TYPES.STATE_UPDATED });
+            }
+          }
+        ]
+      },
+      {
+        description: "appends newer episodes without duplicating existing entries",
+        setup: async () => {
+          const older = episodeFactory({ id: "older" });
+          const current = episodeFactory({ id: "current" });
+          await background.setQueue([older, current]);
+          await background.setCurrentEpisode("current");
+          return { older, current };
+        },
+        type: MESSAGE_TYPES.ADD_EPISODE_AND_NEWER,
+        payload: [
+          episodeFactory({ id: "current" }),
+          episodeFactory({ id: "new-1" }),
+          episodeFactory({ id: "new-2" })
+        ],
+        assert: async ({ result }) => {
+          expect(result.queue.map((episode) => episode.id)).toEqual([
+            "older",
+            "current",
+            "new-1",
+            "new-2"
+          ]);
+        }
+      },
+      {
+        description: "removes episodes when REMOVE_EPISODE is handled",
+        setup: async () => {
+          const removable = episodeFactory({ id: "remove-me" });
+          await background.setQueue([removable]);
+          return { removable };
+        },
+        type: MESSAGE_TYPES.REMOVE_EPISODE,
+        payload: { id: "remove-me" },
+        assert: async ({ result }) => {
+          expect(result.queue.find((episode) => episode.id === "remove-me")).toBeUndefined();
+        }
+      },
+      {
+        description: "updates settings and applies queue defaults",
+        setup: async () => {
+          const state = await background.handleMessage({ type: MESSAGE_TYPES.GET_STATE });
+          state.queue = [
+            { id: "existing", title: "Existing", audioLanguage: null },
+            { id: "another", title: "Another", audioLanguage: undefined }
+          ];
+        },
+        type: MESSAGE_TYPES.UPDATE_SETTINGS,
+        payload: { settings: { defaultAudioLanguage: AUDIO_LANGUAGES[1].code } },
+        assert: async ({ result }) => {
+          expect(result.settings.defaultAudioLanguage).toBe(AUDIO_LANGUAGES[1].code);
+          expect(result.queue.every((episode) => episode.audioLanguage === AUDIO_LANGUAGES[1].code)).toBe(true);
+        }
+      },
+      {
+        description: "returns diagnostic information for REQUEST_DEBUG_DUMP",
+        type: MESSAGE_TYPES.REQUEST_DEBUG_DUMP,
+        assert: async ({ result }) => {
+          expect(result).toMatchObject({
+            timestamp: expect.any(String),
+            audioLanguages: AUDIO_LANGUAGES,
+            state: expect.any(Object)
+          });
+        }
+      },
+      {
+        description: "logs unknown messages when debug logging is enabled",
+        setup: async () => {
+          await background.updateSettings({ debugLogging: true });
+          globalThis.browser.runtime.sendMessage.mockClear();
+          const consoleSpy = vi.spyOn(console, "debug").mockImplementation(() => {});
+          return { consoleSpy };
+        },
+        message: { type: "UNKNOWN_TYPE" },
+        assert: async ({ context }) => {
+          expect(context.consoleSpy).toHaveBeenCalledWith(
+            "[RollQueue]",
+            "Unknown message",
+            { type: "UNKNOWN_TYPE" }
+          );
+        },
+        teardown: async ({ context }) => {
+          context.consoleSpy.mockRestore();
+        }
+      }
+    ]
   });
 });
