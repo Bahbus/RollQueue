@@ -28,7 +28,34 @@ const CARD_ATTRIBUTE = 'data-rollqueue-episode-id';
 const ANNOTATED_FLAG = 'data-rollqueue-annotated';
 
 const sendMessage = (message) => {
-  return browserApi.runtime.sendMessage(message).catch(() => undefined);
+  return new Promise((resolve) => {
+    let settled = false;
+    const finalize = (value) => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      resolve(value);
+    };
+
+    const callback = (response) => {
+      const lastError = browserApi?.runtime?.lastError;
+      if (lastError) {
+        finalize(undefined);
+        return;
+      }
+      finalize(response);
+    };
+
+    try {
+      const maybePromise = browserApi.runtime.sendMessage(message, callback);
+      if (maybePromise && typeof maybePromise.then === 'function') {
+        maybePromise.then(finalize).catch(() => finalize(undefined));
+      }
+    } catch (error) {
+      finalize(undefined);
+    }
+  });
 };
 
 const parseEpisodeIdFromUrl = (url) => {
