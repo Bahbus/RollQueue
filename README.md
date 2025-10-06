@@ -27,6 +27,8 @@ This project uses [Vitest](https://vitest.dev/) for unit testing. After installi
 
 To run an individual suite, append the test file path to the command. For example, `npm test -- tests/example.test.js` executes only the specified file. All CLI flags supported by Vitest are also available, such as `npm test -- --runInBand` for serial execution.
 
+Integration suites under `tests/integration` exercise the background service worker end-to-end with the browser mock, while regression suites in `tests/regression` snapshot shared constants. Both categories run automatically as part of `npm test`, ensuring state transitions and cross-module contracts stay in sync during continuous integration.
+
 ## Project structure
 
 ```
