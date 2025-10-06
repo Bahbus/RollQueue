@@ -503,10 +503,20 @@ export const initCurrentEpisodeSelection = () => {
   selectCurrentEpisode(id);
 };
 
+const scheduleHelperRegistry = {};
+
+const resetScheduleHelperRegistry = () => {
+  scheduleHelperRegistry.annotateEpisodeCards = annotateEpisodeCards;
+  scheduleHelperRegistry.locateAndMonitorVideo = locateAndMonitorVideo;
+  scheduleHelperRegistry.initCurrentEpisodeSelection = initCurrentEpisodeSelection;
+};
+
+resetScheduleHelperRegistry();
+
 export const scheduleTasks = () => {
-  annotateEpisodeCards();
-  locateAndMonitorVideo();
-  initCurrentEpisodeSelection();
+  scheduleHelperRegistry.annotateEpisodeCards();
+  scheduleHelperRegistry.locateAndMonitorVideo();
+  scheduleHelperRegistry.initCurrentEpisodeSelection();
 };
 
 export const teardownContent = () => {
@@ -614,6 +624,21 @@ export const __testInternals = {
   },
   set trackedVideo(value) {
     trackedVideo = value;
+  },
+  overrideScheduleHelpers(overrides = {}) {
+    scheduleHelperRegistry.annotateEpisodeCards =
+      typeof overrides.annotateEpisodeCards === "function" ? overrides.annotateEpisodeCards : annotateEpisodeCards;
+    scheduleHelperRegistry.locateAndMonitorVideo =
+      typeof overrides.locateAndMonitorVideo === "function"
+        ? overrides.locateAndMonitorVideo
+        : locateAndMonitorVideo;
+    scheduleHelperRegistry.initCurrentEpisodeSelection =
+      typeof overrides.initCurrentEpisodeSelection === "function"
+        ? overrides.initCurrentEpisodeSelection
+        : initCurrentEpisodeSelection;
+  },
+  resetScheduleHelpers() {
+    resetScheduleHelperRegistry();
   }
 };
 
