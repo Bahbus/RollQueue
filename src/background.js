@@ -131,6 +131,38 @@ const setPlaybackState = async (playbackState) => {
   }
 };
 
+const controlPlayback = async (action) => {
+  if (!browserApi?.tabs?.query || !browserApi?.tabs?.sendMessage) {
+    debugLog('Tabs API unavailable for playback control');
+    return { success: false };
+  }
+  try {
+    const [activeCrunchyrollTab] = await browserApi.tabs.query({
+      active: true,
+      currentWindow: true,
+      url: ['https://*.crunchyroll.com/*', 'http://*.crunchyroll.com/*']
+    });
+    if (!activeCrunchyrollTab || typeof activeCrunchyrollTab.id !== 'number') {
+      debugLog('No active Crunchyroll tab available for playback control');
+      return { success: false };
+    }
+    const response = browserApi.tabs.sendMessage(activeCrunchyrollTab.id, {
+      type: MESSAGE_TYPES.CONTROL_PLAYBACK,
+      payload: { action }
+    });
+    if (response && typeof response.then === 'function') {
+      return response.catch((error) => {
+        debugLog('Failed to relay playback control command', error);
+        return { success: false };
+      });
+    }
+    return { success: true };
+  } catch (error) {
+    debugLog('Unable to control playback', error);
+    return { success: false };
+  }
+};
+
 const updateSettings = async (settingsUpdate) => {
   state.settings = {
     ...state.settings,
@@ -214,6 +246,9 @@ const handleMessage = async (message) => {
       return state;
     case MESSAGE_TYPES.UPDATE_PLAYBACK_STATE:
       await setPlaybackState(message.payload.state);
+      return state;
+    case MESSAGE_TYPES.CONTROL_PLAYBACK:
+      await controlPlayback(message.payload?.action);
       return state;
     case MESSAGE_TYPES.UPDATE_SETTINGS:
       await updateSettings(message.payload.settings);

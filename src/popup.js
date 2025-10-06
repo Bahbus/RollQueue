@@ -191,6 +191,10 @@ queueList.addEventListener('drop', handleDrop);
 const bindControls = () => {
   document.getElementById('play-button').addEventListener('click', async () => {
     if (!selectedEpisodeId) {
+      sendMessage({
+        type: MESSAGE_TYPES.CONTROL_PLAYBACK,
+        payload: { action: 'play' }
+      });
       return;
     }
     const episode = appState.queue.find((item) => item.id === selectedEpisodeId);
@@ -201,12 +205,16 @@ const bindControls = () => {
         payload: { id: selectedEpisodeId }
       });
     }
+    sendMessage({
+      type: MESSAGE_TYPES.CONTROL_PLAYBACK,
+      payload: { action: 'play' }
+    });
   });
 
   document.getElementById('pause-button').addEventListener('click', () => {
     sendMessage({
-      type: MESSAGE_TYPES.UPDATE_PLAYBACK_STATE,
-      payload: { state: PLAYBACK_STATES.PAUSED }
+      type: MESSAGE_TYPES.CONTROL_PLAYBACK,
+      payload: { action: 'pause' }
     });
   });
 
