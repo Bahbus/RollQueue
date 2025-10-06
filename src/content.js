@@ -12,7 +12,8 @@ const MESSAGE_TYPES = {
   UPDATE_PLAYBACK_STATE: 'UPDATE_PLAYBACK_STATE',
   REQUEST_DEBUG_DUMP: 'REQUEST_DEBUG_DUMP',
   SET_AUDIO_LANGUAGE: 'SET_AUDIO_LANGUAGE',
-  SET_QUEUE: 'SET_QUEUE'
+  SET_QUEUE: 'SET_QUEUE',
+  APPLY_AUDIO_LANGUAGE: 'APPLY_AUDIO_LANGUAGE'
 };
 
 const PLAYBACK_STATES = {
@@ -26,6 +27,17 @@ const MENU_ITEM_CLASS = 'rollqueue-menu-item';
 const MENU_ITEM_ATTRIBUTE = 'data-rollqueue-menu-item';
 const CARD_ATTRIBUTE = 'data-rollqueue-episode-id';
 const ANNOTATED_FLAG = 'data-rollqueue-annotated';
+
+const AUDIO_LANGUAGE_LABELS = {
+  'ja-JP': 'Japanese',
+  'en-US': 'English',
+  'es-419': 'Spanish (Latin America)',
+  'es-ES': 'Spanish (Spain)',
+  'pt-BR': 'Portuguese (Brazil)',
+  'fr-FR': 'French',
+  'de-DE': 'German',
+  'it-IT': 'Italian'
+};
 
 const sendMessage = (message) => {
   return new Promise((resolve) => {
@@ -206,6 +218,192 @@ const updatePlaybackStatus = (state) => {
   });
 };
 
+const normalizeLanguageValue = (value) => (value || '').toLowerCase();
+
+const buildLanguageCandidates = (code, label) => {
+  const candidates = new Set();
+  if (code) {
+    candidates.add(code);
+    const shortCode = code.split('-')[0];
+    candidates.add(shortCode);
+    const mapped = AUDIO_LANGUAGE_LABELS[code];
+    if (mapped) {
+      candidates.add(mapped);
+      const simplifiedMapped = mapped.replace(/\(.*?\)/g, '').trim();
+      if (simplifiedMapped) {
+        candidates.add(simplifiedMapped);
+      }
+    }
+  }
+  if (label) {
+    candidates.add(label);
+    const simplifiedLabel = label.replace(/\(.*?\)/g, '').trim();
+    if (simplifiedLabel) {
+      candidates.add(simplifiedLabel);
+    }
+  }
+  return Array.from(candidates)
+    .map((candidate) => normalizeLanguageValue(candidate))
+    .filter(Boolean);
+};
+
+const setVideoAudioTrack = (video, code, label) => {
+  if (!video) {
+    return false;
+  }
+  let audioTracks;
+  try {
+    audioTracks = video.audioTracks;
+  } catch (error) {
+    return false;
+  }
+  if (!audioTracks || typeof audioTracks.length !== 'number') {
+    return false;
+  }
+  const candidates = buildLanguageCandidates(code, label);
+  let matchedIndex = -1;
+  for (let index = 0; index < audioTracks.length; index += 1) {
+    const track = audioTracks[index];
+    const language = normalizeLanguageValue(track.language);
+    const trackLabel = normalizeLanguageValue(track.label);
+    const matches = candidates.some((candidate) => {
+      if (language && (language === candidate || language.startsWith(candidate))) {
+        return true;
+      }
+      if (trackLabel && (trackLabel === candidate || trackLabel.includes(candidate))) {
+        return true;
+      }
+      return false;
+    });
+    if (matches) {
+      matchedIndex = index;
+      break;
+    }
+  }
+  if (matchedIndex === -1) {
+    return false;
+  }
+  for (let index = 0; index < audioTracks.length; index += 1) {
+    const track = audioTracks[index];
+    const shouldEnable = index === matchedIndex;
+    if (track.enabled !== shouldEnable) {
+      try {
+        track.enabled = shouldEnable;
+      } catch (error) {
+        // Ignore assignment issues and continue.
+      }
+    }
+  }
+  return true;
+};
+
+const findAudioMenuToggle = () =>
+  document.querySelector(
+    'button[aria-label*="audio" i], button[data-testid="audio-menu-button"], button[data-testid="audio-selector"], button[aria-label*="dub" i]'
+  );
+
+const collectAudioMenuOptions = () => {
+  const selectors = [
+    '[role="menu"] [role="menuitem"]',
+    '[role="menu"] [role="menuitemradio"]',
+    '[data-testid="audio-menu-option"]',
+    '[data-testid="audio-language-option"]'
+  ];
+  const results = new Set();
+  selectors.forEach((selector) => {
+    document.querySelectorAll(selector).forEach((element) => {
+      const withinMenu = element.closest('[role="menu"], [data-testid="audio-menu"]');
+      if (!withinMenu) {
+        return;
+      }
+      const isHidden = element.getAttribute('aria-hidden') === 'true' || element.hidden || element.style?.display === 'none';
+      if (!isHidden) {
+        results.add(element);
+      }
+    });
+  });
+  return Array.from(results);
+};
+
+const waitForMenuOption = (matcher, timeout = 2000) =>
+  new Promise((resolve) => {
+    const start = Date.now();
+    const check = () => {
+      const option = collectAudioMenuOptions().find((element) => matcher(element));
+      if (option) {
+        resolve(option);
+        return;
+      }
+      if (Date.now() - start >= timeout) {
+        resolve(null);
+        return;
+      }
+      if (typeof window.requestAnimationFrame === 'function') {
+        window.requestAnimationFrame(check);
+      } else {
+        setTimeout(check, 100);
+      }
+    };
+    check();
+  });
+
+const selectAudioTrackFromMenu = async (code, label) => {
+  const toggle = findAudioMenuToggle();
+  if (!toggle) {
+    return false;
+  }
+  const wasExpanded = toggle.getAttribute('aria-expanded') === 'true';
+  if (!wasExpanded) {
+    toggle.click();
+  }
+  const candidates = buildLanguageCandidates(code, label);
+  const option = await waitForMenuOption((element) => {
+    const text = normalizeLanguageValue(element.textContent?.trim());
+    if (!text) {
+      return false;
+    }
+    return candidates.some((candidate) => text.includes(candidate));
+  });
+  if (!option) {
+    if (!wasExpanded && toggle.getAttribute('aria-expanded') === 'true') {
+      toggle.click();
+    }
+    return false;
+  }
+  option.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+  if (!wasExpanded && toggle.getAttribute('aria-expanded') === 'true') {
+    toggle.click();
+  }
+  return true;
+};
+
+const applyAudioLanguageDirective = async ({ audioLanguage, label } = {}) => {
+  if (!audioLanguage) {
+    return false;
+  }
+  const video = document.querySelector('video');
+  let switched = false;
+  if (video) {
+    switched = setVideoAudioTrack(video, audioLanguage, label);
+  }
+  if (!switched) {
+    switched = await selectAudioTrackFromMenu(audioLanguage, label);
+  }
+  if (switched) {
+    if (video) {
+      const state = video.ended
+        ? PLAYBACK_STATES.ENDED
+        : video.paused
+          ? PLAYBACK_STATES.PAUSED
+          : PLAYBACK_STATES.PLAYING;
+      updatePlaybackStatus(state);
+    } else {
+      updatePlaybackStatus(PLAYBACK_STATES.IDLE);
+    }
+  }
+  return switched;
+};
+
 const selectCurrentEpisode = (episodeId) => {
   if (!episodeId) {
     return;
@@ -263,3 +461,17 @@ scheduleTasks();
 setupMenuInjection();
 
 setInterval(scheduleTasks, 2000);
+
+browserApi.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (message?.type === MESSAGE_TYPES.APPLY_AUDIO_LANGUAGE) {
+    Promise.resolve(applyAudioLanguageDirective(message.payload)).then((success) => {
+      try {
+        sendResponse({ success });
+      } catch (error) {
+        // Ignore response errors (listener may be gone).
+      }
+    });
+    return true;
+  }
+  return undefined;
+});
