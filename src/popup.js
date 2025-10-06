@@ -17,12 +17,36 @@ let appState = {
 
 let selectedEpisodeId = null;
 
-const queueList = document.getElementById('queue-list');
-const playbackStatus = document.getElementById('playback-status');
-const audioLanguageSelect = document.getElementById('audio-language');
-const autoRemoveCheckbox = document.getElementById('auto-remove');
-const debugLoggingCheckbox = document.getElementById('debug-logging');
-const lastUpdatedEl = document.getElementById('last-updated');
+let domRefs = {};
+
+const getDefaultDomRefs = () => ({
+  queueList: document.getElementById('queue-list'),
+  playbackStatus: document.getElementById('playback-status'),
+  audioLanguageSelect: document.getElementById('audio-language'),
+  autoRemoveCheckbox: document.getElementById('auto-remove'),
+  debugLoggingCheckbox: document.getElementById('debug-logging'),
+  lastUpdatedEl: document.getElementById('last-updated'),
+  playButton: document.getElementById('play-button'),
+  pauseButton: document.getElementById('pause-button'),
+  removeButton: document.getElementById('remove-button'),
+  debugDumpButton: document.getElementById('debug-dump'),
+});
+
+const setDomRefs = (overrides = {}) => {
+  domRefs = { ...getDefaultDomRefs(), ...overrides };
+  return domRefs;
+};
+
+const resolveDomRefs = (overrides) => {
+  if (overrides) {
+    domRefs = { ...domRefs, ...overrides };
+    return overrides;
+  }
+  if (!domRefs.queueList) {
+    setDomRefs();
+  }
+  return domRefs;
+};
 
 const sendMessage = (message) => {
   return new Promise((resolve, reject) => {
@@ -66,15 +90,27 @@ const formatTimestamp = (timestamp) => {
   return new Date(timestamp).toLocaleTimeString();
 };
 
-const renderPlaybackStatus = () => {
+const renderPlaybackStatus = (elementsArg) => {
+  const { playbackStatus } = resolveDomRefs(elementsArg);
+  if (!playbackStatus) {
+    return;
+  }
   playbackStatus.textContent = appState.playbackState.replace(/^./, (char) => char.toUpperCase());
 };
 
-const setSelectedEpisode = (episodeId) => {
+const setSelectedEpisode = (episodeId, elementsArg) => {
+  const { queueList, audioLanguageSelect } = resolveDomRefs(elementsArg);
+  if (!queueList) {
+    selectedEpisodeId = episodeId;
+    return;
+  }
   selectedEpisodeId = episodeId;
   Array.from(queueList.children).forEach((child) => {
     child.classList.toggle('selected', child.dataset.id === selectedEpisodeId);
   });
+  if (!audioLanguageSelect) {
+    return;
+  }
   if (!episodeId) {
     audioLanguageSelect.value = appState.settings.defaultAudioLanguage;
     return;
@@ -85,7 +121,11 @@ const setSelectedEpisode = (episodeId) => {
   }
 };
 
-const renderQueue = () => {
+const renderQueue = (elementsArg) => {
+  const { queueList } = resolveDomRefs(elementsArg);
+  if (!queueList) {
+    return;
+  }
   queueList.innerHTML = '';
   appState.queue.forEach((episode) => {
     const item = document.createElement('li');
@@ -138,11 +178,12 @@ const renderQueue = () => {
 
     queueList.appendChild(item);
   });
-  setSelectedEpisode(selectedEpisodeId);
+  setSelectedEpisode(selectedEpisodeId, elementsArg);
 };
 
-const ensureLanguageOptions = () => {
-  if (audioLanguageSelect.childElementCount) {
+const ensureLanguageOptions = (elementsArg) => {
+  const { audioLanguageSelect } = resolveDomRefs(elementsArg);
+  if (!audioLanguageSelect || audioLanguageSelect.childElementCount) {
     return;
   }
   AUDIO_LANGUAGES.forEach((language) => {
@@ -153,7 +194,11 @@ const ensureLanguageOptions = () => {
   });
 };
 
-const handleDragOver = (event) => {
+const handleDragOver = (event, elementsArg) => {
+  const { queueList } = resolveDomRefs(elementsArg);
+  if (!queueList) {
+    return;
+  }
   event.preventDefault();
   const dragging = queueList.querySelector('.dragging');
   if (!dragging) {
@@ -176,7 +221,11 @@ const handleDragOver = (event) => {
   }
 };
 
-const handleDrop = (event) => {
+const handleDrop = (event, elementsArg) => {
+  const { queueList } = resolveDomRefs(elementsArg);
+  if (!queueList) {
+    return;
+  }
   event.preventDefault();
   const orderedIds = Array.from(queueList.children).map((child) => child.dataset.id);
   sendMessage({
@@ -185,11 +234,25 @@ const handleDrop = (event) => {
   });
 };
 
-queueList.addEventListener('dragover', handleDragOver);
-queueList.addEventListener('drop', handleDrop);
+const bindControls = (elementsArg) => {
+  const {
+    queueList,
+    playButton,
+    pauseButton,
+    removeButton,
+    audioLanguageSelect,
+    autoRemoveCheckbox,
+    debugLoggingCheckbox,
+    debugDumpButton,
+    lastUpdatedEl,
+  } = resolveDomRefs(elementsArg);
 
-const bindControls = () => {
-  document.getElementById('play-button').addEventListener('click', async () => {
+  if (queueList) {
+    queueList.addEventListener('dragover', (event) => handleDragOver(event, elementsArg));
+    queueList.addEventListener('drop', (event) => handleDrop(event, elementsArg));
+  }
+
+  playButton?.addEventListener('click', async () => {
     if (!selectedEpisodeId) {
       sendMessage({
         type: MESSAGE_TYPES.CONTROL_PLAYBACK,
@@ -211,14 +274,14 @@ const bindControls = () => {
     });
   });
 
-  document.getElementById('pause-button').addEventListener('click', () => {
+  pauseButton?.addEventListener('click', () => {
     sendMessage({
       type: MESSAGE_TYPES.CONTROL_PLAYBACK,
       payload: { action: 'pause' }
     });
   });
 
-  document.getElementById('remove-button').addEventListener('click', () => {
+  removeButton?.addEventListener('click', () => {
     if (!selectedEpisodeId) {
       return;
     }
@@ -226,10 +289,10 @@ const bindControls = () => {
       type: MESSAGE_TYPES.REMOVE_EPISODE,
       payload: { id: selectedEpisodeId }
     });
-    setSelectedEpisode(null);
+    setSelectedEpisode(null, elementsArg);
   });
 
-  audioLanguageSelect.addEventListener('change', () => {
+  audioLanguageSelect?.addEventListener('change', () => {
     const value = audioLanguageSelect.value;
     if (selectedEpisodeId) {
       sendMessage({
@@ -244,24 +307,24 @@ const bindControls = () => {
     }
   });
 
-  autoRemoveCheckbox.addEventListener('change', () => {
+  autoRemoveCheckbox?.addEventListener('change', () => {
     sendMessage({
       type: MESSAGE_TYPES.UPDATE_SETTINGS,
       payload: { settings: { autoRemoveCompleted: autoRemoveCheckbox.checked } }
     });
   });
 
-  debugLoggingCheckbox.addEventListener('change', () => {
+  debugLoggingCheckbox?.addEventListener('change', () => {
     sendMessage({
       type: MESSAGE_TYPES.UPDATE_SETTINGS,
       payload: { settings: { debugLogging: debugLoggingCheckbox.checked } }
     });
   });
 
-  document.getElementById('debug-dump').addEventListener('click', async () => {
+  debugDumpButton?.addEventListener('click', async () => {
     try {
       const dump = await sendMessage({ type: MESSAGE_TYPES.REQUEST_DEBUG_DUMP });
-      if (dump) {
+      if (dump && navigator?.clipboard?.writeText) {
         await navigator.clipboard.writeText(JSON.stringify(dump, null, 2));
         const previous = lastUpdatedEl.textContent;
         lastUpdatedEl.textContent = 'Debug info copied';
@@ -275,32 +338,42 @@ const bindControls = () => {
   });
 };
 
-const applySettings = () => {
-  autoRemoveCheckbox.checked = appState.settings.autoRemoveCompleted;
-  debugLoggingCheckbox.checked = appState.settings.debugLogging;
-  if (!selectedEpisodeId) {
+const applySettings = (elementsArg) => {
+  const { autoRemoveCheckbox, debugLoggingCheckbox, audioLanguageSelect } = resolveDomRefs(elementsArg);
+  if (autoRemoveCheckbox) {
+    autoRemoveCheckbox.checked = appState.settings.autoRemoveCompleted;
+  }
+  if (debugLoggingCheckbox) {
+    debugLoggingCheckbox.checked = appState.settings.debugLogging;
+  }
+  if (!selectedEpisodeId && audioLanguageSelect) {
     audioLanguageSelect.value = appState.settings.defaultAudioLanguage;
   }
 };
 
-const updateState = (newState) => {
+const updateState = (newState, elementsArg) => {
+  const { lastUpdatedEl } = resolveDomRefs(elementsArg);
   appState = newState;
-  renderPlaybackStatus();
-  renderQueue();
-  applySettings();
-  lastUpdatedEl.textContent = `Updated ${formatTimestamp(appState.lastUpdated)}`;
+  renderPlaybackStatus(elementsArg);
+  renderQueue(elementsArg);
+  applySettings(elementsArg);
+  if (lastUpdatedEl) {
+    lastUpdatedEl.textContent = `Updated ${formatTimestamp(appState.lastUpdated)}`;
+  }
   if (!selectedEpisodeId && appState.currentEpisodeId) {
-    setSelectedEpisode(appState.currentEpisodeId);
+    setSelectedEpisode(appState.currentEpisodeId, elementsArg);
   }
 };
 
-const init = async () => {
-  ensureLanguageOptions();
-  bindControls();
+const init = async ({ elements } = {}) => {
+  const refs = setDomRefs(elements ?? {});
+  ensureLanguageOptions(refs);
+  bindControls(refs);
   const currentState = await sendMessage({ type: MESSAGE_TYPES.GET_STATE });
   if (currentState) {
-    updateState(currentState);
+    updateState(currentState, refs);
   }
+  return currentState ?? null;
 };
 
 browserApi.runtime.onMessage.addListener((message) => {
@@ -309,4 +382,19 @@ browserApi.runtime.onMessage.addListener((message) => {
   }
 });
 
-init();
+if (typeof window !== 'undefined' && !window.__ROLLQUEUE_NO_AUTO_INIT__) {
+  init();
+}
+
+export {
+  renderQueue,
+  setSelectedEpisode,
+  renderPlaybackStatus,
+  applySettings,
+  bindControls,
+  updateState,
+  init,
+  handleDragOver,
+  handleDrop,
+  formatTimestamp,
+};
