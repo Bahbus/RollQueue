@@ -2,6 +2,7 @@
 import { promises as fs } from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { build } from 'esbuild';
 import { Resvg } from '@resvg/resvg-js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -73,6 +74,19 @@ await copyIfExists('LICENSE');
 const manifestPath = path.join(rootDir, 'manifest.json');
 const manifest = JSON.parse(await fs.readFile(manifestPath, 'utf8'));
 
+const backgroundSource = manifest?.background?.service_worker || 'src/background.js';
+const backgroundOutputDir = path.join(distDir, 'background');
+await fs.mkdir(backgroundOutputDir, { recursive: true });
+await build({
+  entryPoints: [path.join(rootDir, backgroundSource)],
+  bundle: true,
+  outfile: path.join(backgroundOutputDir, 'index.js'),
+  format: 'iife',
+  platform: 'browser',
+  target: ['firefox102'],
+  logLevel: 'silent',
+});
+
 const toPngPath = (iconPath, size) => {
   if (!iconPath) {
     return iconPath;
@@ -92,18 +106,44 @@ if (manifest.icons) {
   }
 }
 
-if (manifest.action && manifest.action.default_icon) {
-  if (typeof manifest.action.default_icon === 'string') {
-    manifest.action.default_icon = {
-      48: toPngPath(manifest.action.default_icon, 48),
-      128: toPngPath(manifest.action.default_icon, 128),
-    };
-  } else {
-    for (const [size, iconPath] of Object.entries(manifest.action.default_icon)) {
-      manifest.action.default_icon[size] = toPngPath(iconPath, size);
-    }
+const normalizeActionIcon = (actionConfig) => {
+  if (!actionConfig?.default_icon) {
+    return;
   }
+  if (typeof actionConfig.default_icon === 'string') {
+    actionConfig.default_icon = {
+      48: toPngPath(actionConfig.default_icon, 48),
+      128: toPngPath(actionConfig.default_icon, 128),
+    };
+    return;
+  }
+  for (const [size, iconPath] of Object.entries(actionConfig.default_icon)) {
+    actionConfig.default_icon[size] = toPngPath(iconPath, size);
+  }
+};
+
+normalizeActionIcon(manifest.action);
+normalizeActionIcon(manifest.browser_action);
+
+manifest.manifest_version = 2;
+
+if (manifest.host_permissions?.length) {
+  const permissions = new Set([...(manifest.permissions ?? []), ...manifest.host_permissions]);
+  manifest.permissions = Array.from(permissions);
+  delete manifest.host_permissions;
 }
+
+if (manifest.action && !manifest.browser_action) {
+  manifest.browser_action = manifest.action;
+}
+
+if (manifest.browser_action) {
+  delete manifest.action;
+}
+
+manifest.background = {
+  scripts: ['background/index.js'],
+};
 
 const firefoxManifestPath = path.join(distDir, 'manifest.json');
 await fs.mkdir(path.dirname(firefoxManifestPath), { recursive: true });
