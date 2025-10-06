@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>RollQueue Settings</title>
+    <link rel="stylesheet" href="options.css" />
+  </head>
+  <body>
+    <main class="container">
+      <h1>RollQueue Settings</h1>
+      <section>
+        <h2>Queue preferences</h2>
+        <label class="setting">
+          <input type="checkbox" id="auto-remove" />
+          Auto remove episodes once playback ends
+        </label>
+        <label class="setting">
+          <input type="checkbox" id="debug-logging" />
+          Enable debug logging
+        </label>
+      </section>
+      <section>
+        <h2>Default audio language</h2>
+        <select id="audio-language"></select>
+      </section>
+      <section>
+        <h2>Queue management</h2>
+        <button id="clear-queue">Clear queue</button>
+        <button id="export-queue">Export queue</button>
+        <button id="import-queue">Import queue</button>
+        <input type="file" id="queue-file" accept="application/json" hidden />
+      </section>
+      <section>
+        <h2>Status</h2>
+        <pre id="state-dump" class="state-dump"></pre>
+      </section>
+    </main>
+    <script type="module" src="options.js"></script>
+  </body>
+</html>

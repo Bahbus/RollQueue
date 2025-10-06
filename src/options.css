@@ -1,0 +1,75 @@
+:root {
+  color-scheme: dark light;
+  font-family: 'Inter', 'Segoe UI', sans-serif;
+}
+
+body {
+  margin: 0;
+  background: #0f172a;
+  color: #f8fafc;
+}
+
+.container {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 2rem;
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+}
+
+h1,
+h2 {
+  margin: 0;
+}
+
+section {
+  background: rgba(15, 23, 42, 0.85);
+  border-radius: 0.75rem;
+  padding: 1.5rem;
+  border: 1px solid rgba(255, 138, 0, 0.15);
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.setting {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  font-size: 1rem;
+}
+
+select {
+  padding: 0.75rem;
+  border-radius: 0.5rem;
+  border: 1px solid rgba(248, 250, 252, 0.1);
+  background: rgba(15, 23, 42, 0.8);
+  color: inherit;
+}
+
+button {
+  padding: 0.75rem 1rem;
+  border-radius: 0.5rem;
+  border: none;
+  background: rgba(255, 138, 0, 0.9);
+  color: #0f172a;
+  font-weight: 600;
+  cursor: pointer;
+  width: fit-content;
+}
+
+button:hover {
+  background: #ff8a00;
+}
+
+.state-dump {
+  max-height: 320px;
+  overflow: auto;
+  background: rgba(2, 6, 23, 0.6);
+  padding: 1rem;
+  border-radius: 0.5rem;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 0.875rem;
+  border: 1px solid rgba(255, 138, 0, 0.15);
+}
