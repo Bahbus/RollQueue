@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
+  <defs>
+    <linearGradient id="queueGradient128" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ff914d" />
+      <stop offset="100%" stop-color="#ff4d6d" />
+    </linearGradient>
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="120%" filterUnits="objectBoundingBox">
+      <feDropShadow dx="0" dy="4" stdDeviation="4" flood-color="rgba(0,0,0,0.25)" />
+    </filter>
+  </defs>
+  <rect x="12" y="12" width="104" height="104" rx="28" fill="url(#queueGradient128)" filter="url(#shadow)" />
+  <g fill="none" stroke="#ffffff" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M44 48h48" stroke-width="8" />
+    <path d="M44 68h38" stroke-width="8" opacity="0.85" />
+    <path d="M44 88h28" stroke-width="8" opacity="0.7" />
+    <circle cx="36" cy="48" r="5" fill="#ffffff" stroke-width="6" />
+    <circle cx="36" cy="68" r="5" fill="#ffffff" stroke-width="6" opacity="0.85" />
+    <circle cx="36" cy="88" r="5" fill="#ffffff" stroke-width="6" opacity="0.7" />
+  </g>
+  <path d="M84 64l22 12-22 12z" fill="#ffffff" opacity="0.92" />
+</svg>

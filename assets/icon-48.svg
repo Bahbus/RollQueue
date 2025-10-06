@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 48 48">
+  <defs>
+    <linearGradient id="queueGradient48" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ff914d" />
+      <stop offset="100%" stop-color="#ff4d6d" />
+    </linearGradient>
+  </defs>
+  <rect x="4" y="4" width="40" height="40" rx="10" fill="url(#queueGradient48)" />
+  <g fill="none" stroke="#ffffff" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M16 17h16" stroke-width="3" />
+    <path d="M16 24h12" stroke-width="3" opacity="0.85" />
+    <path d="M16 31h8" stroke-width="3" opacity="0.7" />
+    <circle cx="14" cy="17" r="1.5" fill="#ffffff" stroke-width="2" />
+    <circle cx="14" cy="24" r="1.5" fill="#ffffff" stroke-width="2" opacity="0.85" />
+    <circle cx="14" cy="31" r="1.5" fill="#ffffff" stroke-width="2" opacity="0.7" />
+  </g>
+  <path d="M30 23l8 5-8 5z" fill="#ffffff" opacity="0.9" />
+</svg>

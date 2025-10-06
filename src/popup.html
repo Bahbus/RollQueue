@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>RollQueue</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <header class="header">
+      <h1>RollQueue</h1>
+      <span class="status" id="playback-status">Idle</span>
+    </header>
+    <section class="controls">
+      <div class="language-selector">
+        <label for="audio-language">Audio language</label>
+        <select id="audio-language"></select>
+      </div>
+      <div class="playback-controls">
+        <button id="play-button" title="Play selected episode">Play</button>
+        <button id="pause-button" title="Pause playback">Pause</button>
+        <button id="remove-button" title="Remove selected episode">Remove</button>
+      </div>
+    </section>
+    <section class="queue-section">
+      <h2>Queue</h2>
+      <ul id="queue-list" class="queue-list"></ul>
+    </section>
+    <section class="settings">
+      <h2>Settings</h2>
+      <label class="setting">
+        <input type="checkbox" id="auto-remove" />
+        Auto remove episodes when completed
+      </label>
+      <label class="setting">
+        <input type="checkbox" id="debug-logging" />
+        Enable debug logging
+      </label>
+    </section>
+    <footer class="footer">
+      <button id="debug-dump">Copy debug info</button>
+      <span class="timestamp" id="last-updated"></span>
+    </footer>
+    <script type="module" src="popup.js"></script>
+  </body>
+</html>
