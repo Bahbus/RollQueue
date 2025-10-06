@@ -10,6 +10,7 @@ const MESSAGE_TYPES = {
   UPDATE_SETTINGS: 'UPDATE_SETTINGS',
   SELECT_EPISODE: 'SELECT_EPISODE',
   UPDATE_PLAYBACK_STATE: 'UPDATE_PLAYBACK_STATE',
+  CONTROL_PLAYBACK: 'CONTROL_PLAYBACK',
   REQUEST_DEBUG_DUMP: 'REQUEST_DEBUG_DUMP',
   SET_AUDIO_LANGUAGE: 'SET_AUDIO_LANGUAGE',
   SET_QUEUE: 'SET_QUEUE',
@@ -27,6 +28,33 @@ const MENU_ITEM_CLASS = 'rollqueue-menu-item';
 const MENU_ITEM_ATTRIBUTE = 'data-rollqueue-menu-item';
 const CARD_ATTRIBUTE = 'data-rollqueue-episode-id';
 const ANNOTATED_FLAG = 'data-rollqueue-annotated';
+
+let trackedVideo = null;
+
+const resolveTrackedVideo = () => {
+  if (trackedVideo && document.contains(trackedVideo)) {
+    return trackedVideo;
+  }
+  const video = document.querySelector('video');
+  if (video) {
+    monitorVideoElement(video);
+    return video;
+  }
+  return null;
+};
+
+const computePlaybackState = (video) => {
+  if (!video) {
+    return PLAYBACK_STATES.IDLE;
+  }
+  if (video.ended) {
+    return PLAYBACK_STATES.ENDED;
+  }
+  if (video.paused) {
+    return PLAYBACK_STATES.PAUSED;
+  }
+  return PLAYBACK_STATES.PLAYING;
+};
 
 const AUDIO_LANGUAGE_LABELS = {
   'ja-JP': 'Japanese',
@@ -415,7 +443,11 @@ const selectCurrentEpisode = (episodeId) => {
 };
 
 const monitorVideoElement = (video) => {
-  if (!video || video.dataset.rollqueueBound === 'true') {
+  if (!video) {
+    return;
+  }
+  trackedVideo = video;
+  if (video.dataset.rollqueueBound === 'true') {
     return;
   }
   video.dataset.rollqueueBound = 'true';
@@ -437,7 +469,10 @@ const monitorVideoElement = (video) => {
 };
 
 const locateAndMonitorVideo = () => {
-  const video = document.querySelector('video');
+  if (trackedVideo && !document.contains(trackedVideo)) {
+    trackedVideo = null;
+  }
+  const video = trackedVideo && document.contains(trackedVideo) ? trackedVideo : document.querySelector('video');
   if (video) {
     monitorVideoElement(video);
   }
@@ -472,6 +507,57 @@ browserApi.runtime.onMessage.addListener((message, sender, sendResponse) => {
       }
     });
     return true;
+  }
+  if (message?.type === MESSAGE_TYPES.CONTROL_PLAYBACK) {
+    const action = message?.payload?.action;
+    const video = resolveTrackedVideo();
+    if (!video || !action) {
+      try {
+        sendResponse({ success: false });
+      } catch (error) {
+        // Ignore response errors (listener may be gone).
+      }
+      return false;
+    }
+
+    const finalize = (success) => {
+      const state = computePlaybackState(video);
+      updatePlaybackStatus(state);
+      try {
+        sendResponse({ success, state });
+      } catch (error) {
+        // Ignore response errors (listener may be gone).
+      }
+    };
+
+    if (action === 'play') {
+      try {
+        const result = video.play?.();
+        if (result && typeof result.then === 'function') {
+          result
+            .then(() => finalize(true))
+            .catch(() => finalize(false));
+          return true;
+        }
+        finalize(true);
+      } catch (error) {
+        finalize(false);
+      }
+      return false;
+    }
+
+    if (action === 'pause') {
+      try {
+        video.pause?.();
+        finalize(true);
+      } catch (error) {
+        finalize(false);
+      }
+      return false;
+    }
+
+    finalize(false);
+    return false;
   }
   return undefined;
 });
