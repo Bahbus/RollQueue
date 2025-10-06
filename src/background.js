@@ -148,11 +148,43 @@ const updateSettings = async (settingsUpdate) => {
 const setAudioLanguage = async (episodeId, audioLanguage) => {
   const index = findEpisodeIndex(episodeId);
   if (index !== -1) {
+    const selectedLanguage = AUDIO_LANGUAGES.find((language) => language.code === audioLanguage);
     state.queue[index] = {
       ...state.queue[index],
       audioLanguage
     };
     await broadcastState();
+    if (browserApi?.tabs?.query && browserApi?.tabs?.sendMessage) {
+      try {
+        const crunchyrollTabs = await browserApi.tabs.query({
+          active: true,
+          url: ['https://*.crunchyroll.com/*', 'http://*.crunchyroll.com/*']
+        });
+        await Promise.all(
+          crunchyrollTabs
+            .filter((tab) => typeof tab?.id === 'number')
+            .map((tab) => {
+              try {
+                const response = browserApi.tabs.sendMessage(tab.id, {
+                  type: MESSAGE_TYPES.APPLY_AUDIO_LANGUAGE,
+                  payload: {
+                    audioLanguage,
+                    label: selectedLanguage?.label || null
+                  }
+                });
+                if (response && typeof response.then === 'function') {
+                  return response.catch(() => undefined);
+                }
+              } catch (error) {
+                debugLog('Failed to notify tab about audio language change', tab.id, error);
+              }
+              return Promise.resolve();
+            })
+        );
+      } catch (error) {
+        debugLog('Unable to query Crunchyroll tabs for audio language update', error);
+      }
+    }
   }
 };
 
